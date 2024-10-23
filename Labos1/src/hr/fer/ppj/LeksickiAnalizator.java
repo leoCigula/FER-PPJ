@@ -70,6 +70,7 @@ class Lex {
                                     break;
                                 case '-':
                                     System.out.println("OP_MINUS "+cnt+" -");
+                                    break;
                                 case '/':
                                     System.out.println("OP_DIJELI "+cnt+" /");
                                     break;
@@ -90,8 +91,14 @@ class Lex {
                         else{
                             if(Character.isDigit(ar[j]) && idn.toString().isBlank())
                                 broj.append(ar[j]);
-                            else
+                            else if(!broj.isEmpty() && Character.isLetter(ar[j])) {
+                                ispis(broj.toString(), idn.toString());
+                                broj = new StringBuilder();
                                 idn.append(ar[j]);
+                            }
+                            else if(Character.isLetter(ar[j])){
+                                idn.append(ar[j]);
+                            }
                         }
 
 
@@ -118,7 +125,7 @@ class LeksickiAnalizator{
                 StringBuilder sb = new StringBuilder();
 
                 // na null ako je sprut
-                while(!(ulaz=citac.readLine()).isBlank()){
+                while((ulaz=citac.readLine()) != null){
                     sb.append(ulaz.concat("\n"));
                 }
 
