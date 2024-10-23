@@ -91,7 +91,7 @@ class Lex {
                         else{
                             if(Character.isDigit(ar[j]) && idn.toString().isBlank())
                                 broj.append(ar[j]);
-                            else if(!broj.isEmpty() && Character.isLetter(ar[j])) {
+                            else if(!(broj.toString().isEmpty()) && Character.isLetter(ar[j])) {
                                 ispis(broj.toString(), idn.toString());
                                 broj = new StringBuilder();
                                 idn.append(ar[j]);
@@ -124,7 +124,7 @@ class LeksickiAnalizator{
                 BufferedReader citac = new BufferedReader(new InputStreamReader(System.in));
                 StringBuilder sb = new StringBuilder();
 
-                // na null ako je sprut
+                // na null ako je sprut, !isBlank ako je testing ovako
                 while((ulaz=citac.readLine()) != null){
                     sb.append(ulaz.concat("\n"));
                 }
