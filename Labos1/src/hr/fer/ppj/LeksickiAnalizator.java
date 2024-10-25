@@ -91,6 +91,9 @@ class Lex {
                         else{
                             if(Character.isDigit(ar[j]) && idn.toString().isBlank())
                                 broj.append(ar[j]);
+                            else if (Character.isDigit(ar[j]) && !idn.toString().isEmpty()){
+                                idn.append(ar[j]);
+                            }
                             else if(!(broj.toString().isEmpty()) && Character.isLetter(ar[j])) {
                                 ispis(broj.toString(), idn.toString());
                                 broj = new StringBuilder();
