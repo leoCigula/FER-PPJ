@@ -120,20 +120,34 @@ class SyntaxAnal{
             Node trenutniCvor = generativnoStablo.pop();
 
 
-            if(sintaksneJedinke.contains(vrhStoga) || vrhStoga.equals("EOF")){
+            if(sintaksneJedinke.contains(vrhStoga)){
                 // ako je predstavlja sintaksnu jedinku ili eof
-
+                if(pos>=ulaz.size()) break;
                 if(tablica.get(vrhStoga)==null || !tablica.get(vrhStoga).containsKey(ulaz.get(pos).tipUlaznoPod())){
-
+                    throw new IllegalArgumentException("err "+ulaz.get(pos).toString());
                 }
                 else{
+                    // nadeni tranzicije
+                    String[] prod = tablica.get(vrhStoga).get(ulaz.get(pos).tipUlaznoPod());
                     System.out.println();
+                    if(prod.length >= 1 || !prod[0].equals("$")){
+                        for(int i=prod.length-1; i >=0 ; i--){
+                            stog.push(prod[i]);
+                            Node dijete = new Node(prod[i]);
+                            trenutniCvor.insert(dijete);
+                            generativnoStablo.push(dijete);
+
+                        }
+                    }else{
+                        trenutniCvor.insert(new Node("$"));
+                    }
                 }
 
-            }else{
+            }
+            else{
                 // podatak sa stoga  == tip entry / token
                 if(vrhStoga.equals(ulaz.get(pos).tipUlaznoPod())){
-                    trenutniCvor.insert(ulaz.get(pos).toString());
+                    trenutniCvor.insert(new  Node(ulaz.get(pos).toString()));
                     pos++;
                 }else{
                    // System.out.println("err "+ulaz.get(pos).toString().replace("\n",""));
@@ -147,23 +161,11 @@ class SyntaxAnal{
         if(stog.isEmpty() && pos == ulaz.size()) {
             korijen.printajPreorder(sb, 0);
             System.out.println(sb);
+            return ;
         }
         else
             throw new IllegalStateException("err kraj");
-
     }
-
-    public void ispisUlaza(){
-        for(Entry t : ulaz)
-            System.out.println(t.toString());
-    }
-
-    public void ispisStabla(){
-        return;
-    }
-
-
-
 
 
 
@@ -212,8 +214,12 @@ class Node{
         nodes = new ArrayList<>();
     }
 
-    void insert(String sadrzaj){
-        this.nodes.add(new Node(sadrzaj));
+    void setSadrzaj(String sadrzaj){
+        this.sadrzaj = sadrzaj;
+    }
+
+    void insert(Node sadrzaj){
+        this.nodes.add(sadrzaj);
     }
 
 
