@@ -35,10 +35,11 @@ public class SintaksniAnalizator {
             try(BufferedReader br2 = new BufferedReader(new InputStreamReader(System.in))){
                 // is null za stdin za labos
                 lines = new ArrayList<>();
-                while(!((line= br2.readLine()).isBlank()))
+                while(!((line = br2.readLine()).isBlank()))
                     lines.add(line);
                 analizator.input(lines);
-                analizator.parse();
+                analizator.parsiraj();
+                //analizator.parse();
             }
             catch (Exception e){
 
@@ -98,7 +99,6 @@ class SyntaxAnal{
             }
 
         }
-        System.out.println("Izgradena je tablica");
     }
 
     public void input(List<String> linije){
@@ -166,7 +166,7 @@ class SyntaxAnal{
                         indentacija.add(0,trenutnaIndentacija+1);
                     }
                     ulazneLinije.add(stog.removeFirst());
-                    stog.addAll(0, Arrays.stream(prod).toList());
+                    stog.addAll(0, List.of(prod));
 
                 }
             }
@@ -192,74 +192,78 @@ class SyntaxAnal{
         }
     }
 
-
     public void parsiraj() {
-        stog.push("EOF");
-        stog.push("<program>");
+        stog.push("<program>");  // Start symbol
         int pos = 0;
         Node root = new Node("<program>");
-        generativnoStablo.push(root);
-        sb = new StringBuilder();  // Initialize StringBuilder for printing output
+        generativnoStablo.push(root);  // Track root in the generative stack
 
-        while (!stog.isEmpty()) {
-            String vrhStoga = stog.pop();
-            Node trenutniCvor = generativnoStablo.pop();
+        while (!stog.isEmpty() || pos< ulaz.size()) {
 
-            // Handle non-terminal symbols
-            if (sintaksneJedinke.contains(vrhStoga)) {  // Non-terminal
-                String tipUlaznog;
-                if (pos < ulaz.size()) {
-                    tipUlaznog = ulaz.get(pos).tipUlaznoPod();
-                } else {
-                    ErrorHandler("kraj", pos);  // End of input error
-                    return;
-                }
+            if (stog.size() == 0 && pos == ulaz.size())
+                ErrorHandler("kraj", pos);
 
-                // Look up production based on current stack top and input token
-                Map<String, String[]> transitions = tablica.get(vrhStoga);
-                if (transitions == null || !transitions.containsKey(tipUlaznog)) {
-                    ErrorHandler(ulaz.get(pos).toString(), pos);  // Unexpected token
-                    return;
-                }
+            String tipUlaza;
+            String vrhStoga;
+            Node trenutniCvor;  // Peek to get current node without popping
 
-                String[] production = transitions.get(tipUlaznog);
-                if (production.length != 1 || !production[0].equals("$")) {
-                    // Push production symbols in reverse order to stack
-                    for (int i = production.length - 1; i >= 0; i--) {
-                        stog.push(production[i]);
-                        Node childNode = new Node(production[i]);
-                        trenutniCvor.insert(childNode);
-                        generativnoStablo.push(childNode);
-                    }
-                } else {
-                    // Epsilon production (no symbol on the right side)
-                    trenutniCvor.insert(new Node("$"));
-                }
-            }
-            // Handle terminal symbols and end of file
-            else {
-                if (vrhStoga.equals("EOF") && pos == ulaz.size()) {
-                    root.printajPreorder(sb, 0);
-                    System.out.println(sb.toString());
-                    return;
-                }
+            if (pos >= ulaz.size()) {
+                tipUlaza = "EOF";
+            } else
+                tipUlaza = ulaz.get(pos).tipUlaznoPod();
 
-                // Check if the current stack top matches the input token type
-                if (pos < ulaz.size() && vrhStoga.equals(ulaz.get(pos).tipUlaznoPod())) {
+            vrhStoga = stog.peek();
+            trenutniCvor = generativnoStablo.peek();
+            if (vrhStoga.equals(tipUlaza)) {
+                if (!tipUlaza.equals("EOF")) {
                     trenutniCvor.setSadrzaj(ulaz.get(pos).toString());
+                    stog.pop();
+                    generativnoStablo.pop();
+                }
+                if (pos < ulaz.size())
                     pos++;
-                } else {
-                    ErrorHandler(ulaz.get(pos).toString(), pos);  // Unexpected token
-                    return;
+                else
+                    ErrorHandler("kraj", pos);
+                continue;
+            } else if (vrhStoga.equals("$")) {
+                stog.pop();
+                generativnoStablo.pop();
+                continue;
+            }
+
+            boolean postoji = false;
+            Map<String, String[]> tranz = tablica.get(vrhStoga);
+            String prod[];
+            if (tranz != null) {
+                if (tranz.containsKey(tipUlaza)) {
+                    postoji = true;
+                    prod = tranz.get(tipUlaza);
+                    stog.pop();
+                    generativnoStablo.pop();
+                    for (int i = prod.length - 1; i >= 0; i--) {
+                        if(!trenutniCvor.sadrzaj.equals(prod[i]) &&   ulaz.size() > pos ? !trenutniCvor.sadrzaj.equals(ulaz.get(pos).toString()) : true ) {
+                            stog.add(prod[i]);
+                            Node child = new Node(prod[i]);
+                            trenutniCvor.insert(child);
+                            generativnoStablo.push(child);
+                        }
+                    }
                 }
             }
-        }
+            if (!postoji) {
+               // stog.clear();
+               // generativnoStablo.clear();
 
-        if (!stog.isEmpty() || pos != ulaz.size()) {
-            ErrorHandler("kraj", pos);  // Unmatched stack or input tokens at end
+                if (pos >= ulaz.size() || stog.peek().equals("KR_AZ"))
+                    ErrorHandler("kraj", 0);
+                else
+                    ErrorHandler(ulaz.get(pos).toString(), pos);
+            }
         }
+            sb = new StringBuilder();
+            root.printajPreorder(sb, 0);
+            System.out.println(sb.toString());
     }
-
 
 
     public void ErrorHandler(String token,int pos){
@@ -270,12 +274,15 @@ class SyntaxAnal{
             Entry pogresniEntry = ulaz.get(pos);
             throw new IllegalArgumentException("err "+pogresniEntry.toString());
         }
+        else{
+            throw new IllegalArgumentException(token);
+        }
     }
 
 
 
     SyntaxAnal(){
-        System.out.println("Stvorena je instanca ");
+        // stvorena je samo instanca
     }
 
 }
@@ -332,8 +339,8 @@ class Node{
     void printajPreorder(StringBuilder ispis, int dubina){
         for(int i=0; i<dubina;i++) ispis = ispis.append(" ");
         ispis = ispis.append(this.sadrzaj).append("\n");
-        for(Node n : nodes){
-            n.printajPreorder(ispis,dubina+1);
+        for(int i = nodes.size() - 1 ; i>=0 ; i--){
+            nodes.get(i).printajPreorder(ispis,dubina+1);
         }
     }
 }
