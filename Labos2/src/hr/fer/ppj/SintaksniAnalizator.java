@@ -1,5 +1,7 @@
 package hr.fer.ppj;
 
+import org.w3c.dom.ElementTraversal;
+
 import javax.lang.model.element.NestingKind;
 import java.io.BufferedReader;
 import java.io.FileReader;
@@ -36,9 +38,10 @@ public class SintaksniAnalizator {
                 while(!((line= br2.readLine()).isBlank()))
                     lines.add(line);
                 analizator.input(lines);
-                analizator.parsiraj();
+                analizator.parse();
             }
             catch (Exception e){
+
                 System.out.println(e.getMessage());
                 e.printStackTrace();
             }
@@ -61,7 +64,7 @@ class SyntaxAnal{
     private List<Entry> ulaz ;
     private StringBuilder sb;
 
-    private Stack<String> stog= new Stack<String>();
+    private Stack<String> stog= new Stack<>();
     private Stack<Node> generativnoStablo = new Stack<Node>();
 
 
@@ -100,71 +103,173 @@ class SyntaxAnal{
 
     public void input(List<String> linije){
         ulaz = new ArrayList<>();
-        for(String s : linije){
+        for(String s : linije) {
             String parts[] = s.split(" ");
-            ulaz.add(new Entry(parts[0],parts[2],Integer.parseInt(parts[1])));
+            ulaz.add(new Entry(parts[0], Integer.parseInt(parts[1]), parts[2]));
+
         }
     }
 
-    public void parsiraj(){
+    public void parse() {
+        LinkedList<String> stog = new LinkedList<>();
+        LinkedList<String> ulazneLinije = new LinkedList<>();
+        LinkedList<Integer> indentacija = new LinkedList<>();
+        LinkedList<Integer> indentancijaUlaznih = new LinkedList<>();
+
+        stog.push("<program>");  // Start symbol
+        indentacija.push(0);  // Start with indentation level 0
+        int pos = 0;
+
+        while (stog.size()>0 || pos<ulaz.size()) {
+            if(pos==ulaz.size() && stog.size() ==0){
+                ErrorHandler("kraj",pos);
+            }
+            String tipUlaza;
+            String vrhStoga;
+
+            if(pos==ulaz.size()){
+                tipUlaza = "EOF";
+            }
+            else tipUlaza = ulaz.get(pos).tipUlaznoPod();
+
+            vrhStoga = stog.getFirst();
+            if (vrhStoga.equals(tipUlaza)) {
+                if(!tipUlaza.equals("EOF")) {
+                    ulazneLinije.add(ulaz.get(pos).toString());
+                    stog.removeFirst();
+                    indentancijaUlaznih.add(indentacija.removeFirst());
+                }
+                if (pos < ulaz.size()) {
+                    pos++;
+                } else {
+                    ErrorHandler("kraj",pos);
+                }
+                continue;
+            }
+            else if(vrhStoga.equals("$")){
+                ulazneLinije.add(stog.removeFirst());
+                indentancijaUlaznih.add(indentacija.removeFirst());
+                continue;
+            }
+
+            boolean postoji = false;
+            Map<String, String[]> tranzicije = tablica.get(vrhStoga);
+            String[] prod;
+            if( tranzicije != null){
+                if(tranzicije.containsKey(tipUlaza)){
+                    postoji=true;
+                    prod = tranzicije.get(tipUlaza);
+                    int trenutnaIndentacija = indentacija.removeFirst();
+                    indentancijaUlaznih.add(trenutnaIndentacija);
+
+                    for(int i =0;i<prod.length;i++){
+                        indentacija.add(0,trenutnaIndentacija+1);
+                    }
+                    ulazneLinije.add(stog.removeFirst());
+                    stog.addAll(0, Arrays.stream(prod).toList());
+
+                }
+            }
+            if(!postoji){
+                ulazneLinije.clear();
+                indentancijaUlaznih.clear();
+
+                if(pos>=ulaz.size() || stog.getFirst().equals("KR_AZ")){
+                    ErrorHandler("kraj",0);
+                }else{
+                    ErrorHandler(ulaz.get(pos).toString(),pos);
+                }
+            }
+        }
+
+
+        // Output parse tree with indentation
+        for (int i = 0; i < ulazneLinije.size(); i++) {
+            for (int j = 0; j < indentancijaUlaznih.get(i); j++) {
+                System.out.print(" ");
+            }
+            System.out.println(ulazneLinije.get(i));
+        }
+    }
+
+
+    public void parsiraj() {
         stog.push("EOF");
         stog.push("<program>");
         int pos = 0;
-        Node korijen = new Node("<program>");
-        Node root = korijen;
-        generativnoStablo.push(korijen);
+        Node root = new Node("<program>");
+        generativnoStablo.push(root);
+        sb = new StringBuilder();  // Initialize StringBuilder for printing output
 
-        while(!stog.isEmpty()){
-
+        while (!stog.isEmpty()) {
             String vrhStoga = stog.pop();
             Node trenutniCvor = generativnoStablo.pop();
 
-
-            if(sintaksneJedinke.contains(vrhStoga)){
-                // ako je predstavlja sintaksnu jedinku ili eof
-                if(pos>=ulaz.size()) break;
-                if(tablica.get(vrhStoga)==null || !tablica.get(vrhStoga).containsKey(ulaz.get(pos).tipUlaznoPod())){
-                    throw new IllegalArgumentException("err "+ulaz.get(pos).toString());
+            // Handle non-terminal symbols
+            if (sintaksneJedinke.contains(vrhStoga)) {  // Non-terminal
+                String tipUlaznog;
+                if (pos < ulaz.size()) {
+                    tipUlaznog = ulaz.get(pos).tipUlaznoPod();
+                } else {
+                    ErrorHandler("kraj", pos);  // End of input error
+                    return;
                 }
-                else{
-                    // nadeni tranzicije
-                    String[] prod = tablica.get(vrhStoga).get(ulaz.get(pos).tipUlaznoPod());
-                    System.out.println();
-                    if(prod.length >= 1 || !prod[0].equals("$")){
-                        for(int i=prod.length-1; i >=0 ; i--){
-                            stog.push(prod[i]);
-                            Node dijete = new Node(prod[i]);
-                            trenutniCvor.insert(dijete);
-                            generativnoStablo.push(dijete);
 
-                        }
-                    }else{
-                        trenutniCvor.insert(new Node("$"));
+                // Look up production based on current stack top and input token
+                Map<String, String[]> transitions = tablica.get(vrhStoga);
+                if (transitions == null || !transitions.containsKey(tipUlaznog)) {
+                    ErrorHandler(ulaz.get(pos).toString(), pos);  // Unexpected token
+                    return;
+                }
+
+                String[] production = transitions.get(tipUlaznog);
+                if (production.length != 1 || !production[0].equals("$")) {
+                    // Push production symbols in reverse order to stack
+                    for (int i = production.length - 1; i >= 0; i--) {
+                        stog.push(production[i]);
+                        Node childNode = new Node(production[i]);
+                        trenutniCvor.insert(childNode);
+                        generativnoStablo.push(childNode);
                     }
+                } else {
+                    // Epsilon production (no symbol on the right side)
+                    trenutniCvor.insert(new Node("$"));
+                }
+            }
+            // Handle terminal symbols and end of file
+            else {
+                if (vrhStoga.equals("EOF") && pos == ulaz.size()) {
+                    root.printajPreorder(sb, 0);
+                    System.out.println(sb.toString());
+                    return;
                 }
 
-            }
-            else{
-                // podatak sa stoga  == tip entry / token
-                if(vrhStoga.equals(ulaz.get(pos).tipUlaznoPod())){
-                    trenutniCvor.insert(new  Node(ulaz.get(pos).toString()));
+                // Check if the current stack top matches the input token type
+                if (pos < ulaz.size() && vrhStoga.equals(ulaz.get(pos).tipUlaznoPod())) {
+                    trenutniCvor.setSadrzaj(ulaz.get(pos).toString());
                     pos++;
-                }else{
-                   // System.out.println("err "+ulaz.get(pos).toString().replace("\n",""));
-                    throw new IllegalArgumentException("err "+ulaz.get(pos).toString().replace("\n",""));
+                } else {
+                    ErrorHandler(ulaz.get(pos).toString(), pos);  // Unexpected token
+                    return;
                 }
-
             }
+        }
+
+        if (!stog.isEmpty() || pos != ulaz.size()) {
+            ErrorHandler("kraj", pos);  // Unmatched stack or input tokens at end
+        }
+    }
 
 
+
+    public void ErrorHandler(String token,int pos){
+        if(token.equals("kraj")){
+            throw new IllegalArgumentException("err kraj\n");
         }
-        if(stog.isEmpty() && pos == ulaz.size()) {
-            korijen.printajPreorder(sb, 0);
-            System.out.println(sb);
-            return ;
+        else if(pos<ulaz.size()){
+            Entry pogresniEntry = ulaz.get(pos);
+            throw new IllegalArgumentException("err "+pogresniEntry.toString());
         }
-        else
-            throw new IllegalStateException("err kraj");
     }
 
 
@@ -184,7 +289,7 @@ class Entry{
     private String sadrzaj;
     private int linija;
 
-    Entry(String entry,String sadrzaj,int linija){
+    Entry(String entry,int linija,String sadrzaj){
         this.entry= oznakaEntry.valueOf(entry);
         this.sadrzaj = sadrzaj;
         this.linija = linija;
@@ -225,8 +330,8 @@ class Node{
 
 
     void printajPreorder(StringBuilder ispis, int dubina){
-        for(int i=0; i<dubina;i++) ispis.append(" ");
-        ispis.append(sadrzaj).append("\n");
+        for(int i=0; i<dubina;i++) ispis = ispis.append(" ");
+        ispis = ispis.append(this.sadrzaj).append("\n");
         for(Node n : nodes){
             n.printajPreorder(ispis,dubina+1);
         }
