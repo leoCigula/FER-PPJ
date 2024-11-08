@@ -35,7 +35,7 @@ public class SintaksniAnalizator {
             try(BufferedReader br2 = new BufferedReader(new InputStreamReader(System.in))){
                 // is null za stdin za labos
                 lines = new ArrayList<>();
-                while(!((line = br2.readLine()).isBlank()))
+                while(((line = br2.readLine())) != null)
                     lines.add(line);
                 analizator.input(lines);
                 analizator.parsiraj();
